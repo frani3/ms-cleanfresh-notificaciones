@@ -3,3 +3,15 @@ server:
 spring:
   application:
     name: ms-cleanfresh-notificaciones
+
+# Consumo de la cola de eventos de órdenes (AWS SQS). Apagado por defecto: sin
+# AWS el servicio arranca igual pero no consume nada. Las credenciales salen de
+# la cadena por defecto del SDK (variables AWS_*, perfil de la EC2, ...).
+app:
+  sqs:
+    enabled: ${SQS_ENABLED:false}
+    queue-url: ${SQS_QUEUE_URL:}
+    region: ${AWS_REGION:us-east-1}
+    # Solo para emuladores locales (por ejemplo ElasticMQ); vacío en AWS.
+    endpoint: ${SQS_ENDPOINT:}
+    poll-delay-ms: 1000
