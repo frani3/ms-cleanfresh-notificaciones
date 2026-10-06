@@ -48,13 +48,13 @@ Pool de Cognito si hace falta recrearlas.
 
 | Proyecto | URL |
 |---|---|
-| Frontend | https://github.com/frani3/Clean-Fresh |
+| Frontend | https://github.com/frani3/cleanfresh-frontend |
 | BFF | https://github.com/frani3/ms-cleanfresh-bff |
 | MS Orders | https://github.com/frani3/ms-cleanfresh-orders |
 | MS Catalog | https://github.com/frani3/ms-cleanfresh-catalog |
-| MS Notificaciones (EP2) | `ms-cleanfresh-notificaciones` — repo git local creado, falta crearlo en GitHub |
-| MS Reportes (EP2) | `ms-cleanfresh-reportes` — repo git local creado, falta crearlo en GitHub |
-| MS Auditoría (EP2) | `ms-cleanfresh-auditoria` — repo git local creado, falta crearlo en GitHub |
+| MS Notificaciones (EP2) | https://github.com/frani3/ms-cleanfresh-notificaciones |
+| MS Reportes (EP2) | https://github.com/frani3/ms-cleanfresh-reportes |
+| MS Auditoría (EP2) | https://github.com/frani3/ms-cleanfresh-auditoria |
 
 ---
 
