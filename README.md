@@ -64,3 +64,14 @@ de SQS simulado y no necesitan AWS.
 
 Ver [`CLAUDE.md`](CLAUDE.md) y, en el repo del frontend,
 `EP2/ARQUITECTURA.md`.
+
+## Docker
+
+`Dockerfile` multi-etapa (Maven + JDK 21 para compilar, JRE 21 sin root para correr). Se configura solo por variables de entorno.
+
+```bash
+docker build -t cleanfresh/notificaciones .
+docker run -p 8083:8083 -e SQS_ENABLED=true -e SQS_QUEUE_URL=... cleanfresh/notificaciones
+```
+
+Los 5 microservicios se levantan juntos con el `docker-compose.yml` de `EP2/despliegue/` en el repo `cleanfresh-frontend`.
