@@ -3,8 +3,18 @@ server:
 spring:
   application:
     name: ms-cleanfresh-notificaciones
+  # Sin valores por defecto a propósito: la conexión llega solo por
+  # variables de entorno y el servicio no arranca si faltan.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
-# Consumo de la cola de eventos de órdenes (AWS SQS). Apagado por defecto: sin
+# Consumo de la cola de eventos de órdenes (AWS SQS): ORDEN_CREADA y ORDEN_LISTA. Apagado por defecto: sin
 # AWS el servicio arranca igual pero no consume nada. Las credenciales salen de
 # la cadena por defecto del SDK (variables AWS_*, perfil de la EC2, ...).
 app:
