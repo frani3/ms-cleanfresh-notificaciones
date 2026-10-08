@@ -114,7 +114,7 @@ public class NotificationService {
         Instant ahora = Instant.now();
         if (ORDEN_CREADA.equals(m.tipo())) {
             String texto = "Nuevo pedido %s: %s de %s en %s (total $%s)"
-                    .formatted(m.numeroOrden(), m.servicio(), m.cliente(), m.sucursal(), monto(m.total()));
+                    .formatted(m.numeroOrden(), m.servicio(), nombreVisible(m), m.sucursal(), monto(m.total()));
             return new NotificationEntity(ORDEN_CREADA, NotificationEntity.DESTINO_SUCURSAL,
                     m.sucursal(), m.numeroOrden(), texto, ahora);
         }
@@ -124,6 +124,14 @@ public class NotificationService {
                     m.cliente(), m.numeroOrden(), texto, ahora);
         }
         return null;
+    }
+
+    // El aviso muestra el nombre legible si vino; si no (ordenes anteriores o sin
+    // poder resolverlo), el identificador. El destinatario sigue siendo siempre
+    // el identificador.
+    private String nombreVisible(OrdenMessage m) {
+        String nombre = m.clienteNombre();
+        return nombre == null || nombre.isBlank() ? m.cliente() : nombre.trim();
     }
 
     private String monto(Double total) {

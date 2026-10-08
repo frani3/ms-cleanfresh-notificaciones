@@ -35,6 +35,13 @@ class NotificationServiceTests {
                 .formatted(tipo, numeroOrden, cliente, sucursal);
     }
 
+    private static String mensajeConNombre(String tipo, String numeroOrden, String cliente, String nombre, String sucursal) {
+        return """
+                {"tipo":"%s","numeroOrden":"%s","cliente":"%s","clienteNombre":%s,"servicio":"Planchado",
+                 "sucursal":"%s","total":15000.0,"fecha":"2026-10-08"}"""
+                .formatted(tipo, numeroOrden, cliente, nombre == null ? "null" : "\"" + nombre + "\"", sucursal);
+    }
+
     @Test
     void ordenCreadaAvisaALaSucursalDeLaOrden() {
         String aviso = service.procesar(mensaje("ORDEN_CREADA", "ORD-0100", "ana-uuid", "Providencia"));
@@ -137,5 +144,36 @@ class NotificationServiceTests {
     @Test
     void rechazaUnMensajeSinNumeroDeOrden() {
         assertThrows(RuntimeException.class, () -> service.procesar("{\"tipo\":\"ORDEN_CREADA\"}"));
+    }
+
+    @Test
+    void elAvisoALaSucursalMuestraElNombreLegibleDelCliente() {
+        String aviso = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0300", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
+
+        assertTrue(aviso.contains("cliente@cleanfresh.com"));
+        assertFalse(aviso.contains("64888468-uuid"));
+        assertEquals("Providencia", service.listar(null, "Providencia").get(0).destinatario());
+    }
+
+    @Test
+    void sinNombreLegibleElAvisoMuestraElIdentificador() {
+        String sinCampo = service.procesar(mensaje("ORDEN_CREADA", "ORD-0301", "Maria Gonzalez", "Providencia"));
+        String nulo = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0302", "64888468-uuid", null, "Providencia"));
+        String blanco = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0303", "otro-uuid", "   ", "Providencia"));
+
+        assertTrue(sinCampo.contains("Maria Gonzalez"));
+        assertTrue(nulo.contains("64888468-uuid"));
+        assertTrue(blanco.contains("otro-uuid"));
+    }
+
+    @Test
+    void elAvisoDePedidoListoSigueDirigidoAlIdentificadorAunqueHayaNombre() {
+        service.procesar(mensajeConNombre("ORDEN_LISTA", "ORD-0304", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
+
+        // se encuentra por el identificador (lo que usa el BFF desde el token), no por el nombre
+        var porId = service.listar("64888468-uuid", null);
+        assertEquals(1, porId.size());
+        assertEquals("64888468-uuid", porId.get(0).destinatario());
+        assertTrue(service.listar("cliente@cleanfresh.com", null).isEmpty());
     }
 }
