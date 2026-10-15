@@ -2,14 +2,12 @@ package com.cleanfresh.ms_cleanfresh_notificaciones.service;
 
 import com.cleanfresh.ms_cleanfresh_notificaciones.dto.NotificationResponse;
 import com.cleanfresh.ms_cleanfresh_notificaciones.entity.NotificationEntity;
-import com.cleanfresh.ms_cleanfresh_notificaciones.messaging.OrdenMessage;
+import com.cleanfresh.ms_cleanfresh_notificaciones.messaging.Envelope;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.NotificationJpaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.text.NumberFormat;
 import java.time.Instant;
@@ -23,7 +21,6 @@ public class NotificationService {
     public static final String ORDEN_LISTA = "ORDEN_LISTA";
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
-    private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     private final NotificationJpaRepository repository;
 
@@ -32,37 +29,21 @@ public class NotificationService {
     }
 
     /**
-     * Procesa el cuerpo de un mensaje de la cola: guarda el aviso dirigido a
-     * quien corresponde y lo devuelve. ORDEN_CREADA avisa a la sucursal de la
-     * orden; ORDEN_LISTA, al cliente dueño. Un mensaje repetido (SQS entrega
-     * "al menos una vez") no duplica el aviso. Un tipo desconocido se ignora
-     * (devuelve null) para no reintentarlo para siempre. Lanza una excepción si
-     * el cuerpo no es un mensaje válido.
+     * Guarda el aviso dirigido a quien corresponde y lo devuelve: ORDEN_CREADA avisa a la sucursal de la
+     * orden; ORDEN_LISTA, al cliente dueño. Si ya hay un aviso de ese tipo para esa orden (segunda defensa
+     * contra repetidos, además de la idempotencia por eventId), no se duplica. Un tipo que no corresponde
+     * lanza IllegalArgumentException, para que el mensaje termine en la DLQ en vez de reintentarse.
      *
-     * No es transaccional a propósito: si el guardado choca con la restricción
-     * de unicidad, esa excepción se atiende acá sin dejar una transacción
-     * marcada para revertir.
+     * Se llama dentro de la transacción de ComandoService: si algo falla, no queda guardado ni el aviso
+     * ni el registro del evento.
      */
-    public String procesar(String body) {
-        OrdenMessage mensaje = MAPPER.readValue(body, OrdenMessage.class);
-        if (mensaje.numeroOrden() == null) {
-            throw new IllegalArgumentException("El mensaje no trae numeroOrden");
-        }
-        NotificationEntity aviso = construirAviso(mensaje);
-        if (aviso == null) {
-            log.warn("Mensaje de tipo desconocido ({}) ignorado: {}", mensaje.tipo(), mensaje.numeroOrden());
-            return null;
-        }
+    public String crearAviso(Envelope e) {
+        NotificationEntity aviso = construirAviso(e);
         if (repository.existsByTipoAndNumeroOrden(aviso.getTipo(), aviso.getNumeroOrden())) {
             log.info("Notificación repetida ignorada: {} de {}", aviso.getTipo(), aviso.getNumeroOrden());
             return aviso.getMensaje();
         }
-        try {
-            repository.save(aviso);
-        } catch (DataIntegrityViolationException e) {
-            log.info("Notificación repetida ignorada: {} de {}", aviso.getTipo(), aviso.getNumeroOrden());
-            return aviso.getMensaje();
-        }
+        repository.save(aviso);
         log.info("Notificación: {}", aviso.getMensaje());
         return aviso.getMensaje();
     }
@@ -110,28 +91,29 @@ public class NotificationService {
         }
     }
 
-    private NotificationEntity construirAviso(OrdenMessage m) {
+    private NotificationEntity construirAviso(Envelope e) {
+        Envelope.OrdenPayload p = e.payload();
         Instant ahora = Instant.now();
-        if (ORDEN_CREADA.equals(m.tipo())) {
+        if (ORDEN_CREADA.equals(e.type())) {
             String texto = "Nuevo pedido %s: %s de %s en %s (total $%s)"
-                    .formatted(m.numeroOrden(), m.servicio(), nombreVisible(m), m.sucursal(), monto(m.total()));
+                    .formatted(p.numeroOrden(), p.servicio(), nombreVisible(p), p.sucursal(), monto(p.total()));
             return new NotificationEntity(ORDEN_CREADA, NotificationEntity.DESTINO_SUCURSAL,
-                    m.sucursal(), m.numeroOrden(), texto, ahora);
+                    p.sucursal(), p.numeroOrden(), texto, ahora);
         }
-        if (ORDEN_LISTA.equals(m.tipo())) {
-            String texto = "Tu pedido %s (%s) está listo".formatted(m.numeroOrden(), m.servicio());
+        if (ORDEN_LISTA.equals(e.type())) {
+            String texto = "Tu pedido %s (%s) está listo".formatted(p.numeroOrden(), p.servicio());
             return new NotificationEntity(ORDEN_LISTA, NotificationEntity.DESTINO_CLIENTE,
-                    m.cliente(), m.numeroOrden(), texto, ahora);
+                    p.cliente(), p.numeroOrden(), texto, ahora);
         }
-        return null;
+        throw new IllegalArgumentException("Tipo de mensaje no soportado: " + e.type());
     }
 
     // El aviso muestra el nombre legible si vino; si no (ordenes anteriores o sin
     // poder resolverlo), el identificador. El destinatario sigue siendo siempre
     // el identificador.
-    private String nombreVisible(OrdenMessage m) {
-        String nombre = m.clienteNombre();
-        return nombre == null || nombre.isBlank() ? m.cliente() : nombre.trim();
+    private String nombreVisible(Envelope.OrdenPayload p) {
+        String nombre = p.clienteNombre();
+        return nombre == null || nombre.isBlank() ? p.cliente() : nombre.trim();
     }
 
     private String monto(Double total) {

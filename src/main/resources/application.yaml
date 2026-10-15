@@ -1,6 +1,18 @@
 server:
   port: 8083
 spring:
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        # ACK/NACK explícitos: el código confirma o rechaza cada mensaje (no se reencola: va a la DLQ).
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        prefetch: 10
+        # Si las colas todavía no existen, el servicio arranca y reintenta (no cae).
+        missing-queues-fatal: false
   application:
     name: ms-cleanfresh-notificaciones
   # Sin valores por defecto a propósito: la conexión llega solo por
@@ -14,14 +26,12 @@ spring:
       ddl-auto: update
     open-in-view: false
 
-# Consumo de la cola de eventos de órdenes (AWS SQS): ORDEN_CREADA y ORDEN_LISTA. Apagado por defecto: sin
-# AWS el servicio arranca igual pero no consume nada. Las credenciales salen de
-# la cadena por defecto del SDK (variables AWS_*, perfil de la EC2, ...).
+# Mensajería de comandos con RabbitMQ (Spec 033): notificaciones consume q.cmd.email, q.cmd.kitchen y
+# q.cmd.invoice y registra los mensajes de sus DLQ. Apagada por defecto: sin RabbitMQ (desarrollo local)
+# el servicio arranca igual pero no consume nada. RABBITMQ_ADDRESSES admite varios nodos separados por
+# coma (host1:5672,host2:5673).
 app:
-  sqs:
-    enabled: ${SQS_ENABLED:false}
-    queue-url: ${SQS_QUEUE_URL:}
-    region: ${AWS_REGION:us-east-1}
-    # Solo para emuladores locales (por ejemplo ElasticMQ); vacío en AWS.
-    endpoint: ${SQS_ENDPOINT:}
-    poll-delay-ms: 1000
+  rabbit:
+    enabled: ${RABBIT_ENABLED:false}
+    # Cada cuánto se revisan las DLQ para registrar lo que no se pudo entregar.
+    dlq-intervalo-ms: ${RABBIT_DLQ_INTERVALO_MS:30000}

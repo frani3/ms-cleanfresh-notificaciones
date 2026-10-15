@@ -1,16 +1,20 @@
 package com.cleanfresh.ms_cleanfresh_notificaciones;
 
 import com.cleanfresh.ms_cleanfresh_notificaciones.dto.NotificationResponse;
+import com.cleanfresh.ms_cleanfresh_notificaciones.messaging.Envelope;
+import com.cleanfresh.ms_cleanfresh_notificaciones.repository.EventoProcesadoJpaRepository;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.NotificationJpaRepository;
+import com.cleanfresh.ms_cleanfresh_notificaciones.service.ComandoService;
+import com.cleanfresh.ms_cleanfresh_notificaciones.service.ComandoService.Resultado;
 import com.cleanfresh.ms_cleanfresh_notificaciones.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import static com.cleanfresh.ms_cleanfresh_notificaciones.Sembrador.envelope;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,45 +25,40 @@ class NotificationServiceTests {
     private NotificationService service;
 
     @Autowired
+    private ComandoService comandos;
+
+    @Autowired
     private NotificationJpaRepository repository;
+
+    @Autowired
+    private EventoProcesadoJpaRepository eventos;
 
     @BeforeEach
     void limpiar() {
         repository.deleteAll();
+        eventos.deleteAll();
     }
 
-    private static String mensaje(String tipo, String numeroOrden, String cliente, String sucursal) {
-        return """
-                {"tipo":"%s","numeroOrden":"%s","cliente":"%s","servicio":"Planchado",
-                 "sucursal":"%s","total":15000.0,"fecha":"2026-10-07","campoNuevo":"se ignora"}"""
-                .formatted(tipo, numeroOrden, cliente, sucursal);
-    }
-
-    private static String mensajeConNombre(String tipo, String numeroOrden, String cliente, String nombre, String sucursal) {
-        return """
-                {"tipo":"%s","numeroOrden":"%s","cliente":"%s","clienteNombre":%s,"servicio":"Planchado",
-                 "sucursal":"%s","total":15000.0,"fecha":"2026-10-08"}"""
-                .formatted(tipo, numeroOrden, cliente, nombre == null ? "null" : "\"" + nombre + "\"", sucursal);
+    private void email(Envelope e) {
+        comandos.email(e, "email.send");
     }
 
     @Test
     void ordenCreadaAvisaALaSucursalDeLaOrden() {
-        String aviso = service.procesar(mensaje("ORDEN_CREADA", "ORD-0100", "ana-uuid", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0100", "ana-uuid", null, "Providencia"));
 
-        assertTrue(aviso.contains("ORD-0100"));
-        assertTrue(aviso.contains("Providencia"));
-        assertTrue(aviso.contains("15.000"));
         var guardadas = service.listar(null, "Providencia");
         assertEquals(1, guardadas.size());
         assertEquals("SUCURSAL", guardadas.get(0).destinatarioTipo());
         assertEquals("ORD-0100", guardadas.get(0).numeroOrden());
+        assertTrue(guardadas.get(0).mensaje().contains("15.000"));
         assertFalse(guardadas.get(0).leida());
         assertTrue(service.listar("ana-uuid", null).isEmpty());
     }
 
     @Test
     void ordenListaAvisaAlClienteDueno() {
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0101", "ana-uuid", "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0101", "ana-uuid", null, "Providencia"));
 
         var delCliente = service.listar("ana-uuid", null);
         assertEquals(1, delCliente.size());
@@ -71,34 +70,17 @@ class NotificationServiceTests {
     }
 
     @Test
-    void unMensajeRepetidoNoDuplicaElAviso() {
-        String body = mensaje("ORDEN_CREADA", "ORD-0102", "ana-uuid", "Maipú");
-
-        service.procesar(body);
-        service.procesar(body);
-
-        assertEquals(1, service.listar(null, "Maipú").size());
-    }
-
-    @Test
     void elMismoNumeroConOtroTipoSiSeGuarda() {
-        service.procesar(mensaje("ORDEN_CREADA", "ORD-0103", "ana-uuid", "Providencia"));
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0103", "ana-uuid", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0103", "ana-uuid", null, "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0103", "ana-uuid", null, "Providencia"));
 
         assertEquals(2, service.listar(null, null).size());
     }
 
     @Test
-    void unTipoDesconocidoSeIgnora() {
-        assertNull(service.procesar(mensaje("ORDEN_EXTRAÑA", "ORD-0104", "ana-uuid", "Providencia")));
-
-        assertTrue(service.listar(null, null).isEmpty());
-    }
-
-    @Test
     void sinFiltroDevuelveTodasDeLaMasNuevaALaMasVieja() {
-        service.procesar(mensaje("ORDEN_CREADA", "ORD-0105", "ana-uuid", "Providencia"));
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0106", "ana-uuid", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0105", "ana-uuid", null, "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0106", "ana-uuid", null, "Providencia"));
 
         var todas = service.listar(null, null);
 
@@ -108,8 +90,8 @@ class NotificationServiceTests {
 
     @Test
     void marcarLeidasSoloAfectaAlDestinatarioIndicado() {
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0107", "ana-uuid", "Providencia"));
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0108", "luis-uuid", "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0107", "ana-uuid", null, "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0108", "luis-uuid", null, "Providencia"));
 
         assertEquals(1, service.marcarLeidas("ana-uuid", null));
 
@@ -120,8 +102,8 @@ class NotificationServiceTests {
 
     @Test
     void marcarLeidasSinFiltroMarcaTodas() {
-        service.procesar(mensaje("ORDEN_CREADA", "ORD-0109", "ana-uuid", "Providencia"));
-        service.procesar(mensaje("ORDEN_LISTA", "ORD-0110", "ana-uuid", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0109", "ana-uuid", null, "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0110", "ana-uuid", null, "Providencia"));
 
         assertEquals(2, service.marcarLeidas(null, null));
 
@@ -137,43 +119,43 @@ class NotificationServiceTests {
     }
 
     @Test
-    void rechazaUnCuerpoQueNoEsJson() {
-        assertThrows(RuntimeException.class, () -> service.procesar("esto no es json"));
-    }
-
-    @Test
-    void rechazaUnMensajeSinNumeroDeOrden() {
-        assertThrows(RuntimeException.class, () -> service.procesar("{\"tipo\":\"ORDEN_CREADA\"}"));
-    }
-
-    @Test
     void elAvisoALaSucursalMuestraElNombreLegibleDelCliente() {
-        String aviso = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0300", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0300", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
 
-        assertTrue(aviso.contains("cliente@cleanfresh.com"));
-        assertFalse(aviso.contains("64888468-uuid"));
+        String mensaje = service.listar(null, "Providencia").get(0).mensaje();
+        assertTrue(mensaje.contains("cliente@cleanfresh.com"));
+        assertFalse(mensaje.contains("64888468-uuid"));
         assertEquals("Providencia", service.listar(null, "Providencia").get(0).destinatario());
     }
 
     @Test
     void sinNombreLegibleElAvisoMuestraElIdentificador() {
-        String sinCampo = service.procesar(mensaje("ORDEN_CREADA", "ORD-0301", "Maria Gonzalez", "Providencia"));
-        String nulo = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0302", "64888468-uuid", null, "Providencia"));
-        String blanco = service.procesar(mensajeConNombre("ORDEN_CREADA", "ORD-0303", "otro-uuid", "   ", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0301", "Maria Gonzalez", null, "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0302", "64888468-uuid", "", "Providencia"));
+        email(envelope("ORDEN_CREADA", "ORD-0303", "otro-uuid", "   ", "Providencia"));
 
-        assertTrue(sinCampo.contains("Maria Gonzalez"));
-        assertTrue(nulo.contains("64888468-uuid"));
-        assertTrue(blanco.contains("otro-uuid"));
+        var avisos = service.listar(null, "Providencia");
+        assertTrue(avisos.stream().anyMatch(a -> a.numeroOrden().equals("ORD-0301") && a.mensaje().contains("Maria Gonzalez")));
+        assertTrue(avisos.stream().anyMatch(a -> a.numeroOrden().equals("ORD-0302") && a.mensaje().contains("64888468-uuid")));
+        assertTrue(avisos.stream().anyMatch(a -> a.numeroOrden().equals("ORD-0303") && a.mensaje().contains("otro-uuid")));
     }
 
     @Test
     void elAvisoDePedidoListoSigueDirigidoAlIdentificadorAunqueHayaNombre() {
-        service.procesar(mensajeConNombre("ORDEN_LISTA", "ORD-0304", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
+        email(envelope("ORDEN_LISTA", "ORD-0304", "64888468-uuid", "cliente@cleanfresh.com", "Providencia"));
 
-        // se encuentra por el identificador (lo que usa el BFF desde el token), no por el nombre
         var porId = service.listar("64888468-uuid", null);
         assertEquals(1, porId.size());
         assertEquals("64888468-uuid", porId.get(0).destinatario());
         assertTrue(service.listar("cliente@cleanfresh.com", null).isEmpty());
+    }
+
+    @Test
+    void elFlujoEmailAceptaSoloLosDosTiposDeEvento() {
+        assertThrows(IllegalArgumentException.class,
+                () -> email(envelope("ORDEN_EXTRAÑA", "ORD-0104", "ana-uuid", null, "Providencia")));
+
+        assertTrue(service.listar(null, null).isEmpty());
+        assertEquals(Resultado.PROCESADO, comandos.email(envelope("ORDEN_CREADA", "ORD-0111", "ana-uuid", null, "Providencia"), "email.send"));
     }
 }

@@ -1,7 +1,8 @@
 package com.cleanfresh.ms_cleanfresh_notificaciones;
 
+import com.cleanfresh.ms_cleanfresh_notificaciones.repository.EventoProcesadoJpaRepository;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.NotificationJpaRepository;
-import com.cleanfresh.ms_cleanfresh_notificaciones.service.NotificationService;
+import com.cleanfresh.ms_cleanfresh_notificaciones.service.ComandoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +23,10 @@ class NotificationControllerTests {
     private MockMvc mockMvc;
 
     @Autowired
-    private NotificationService service;
+    private ComandoService comandos;
+
+    @Autowired
+    private EventoProcesadoJpaRepository eventos;
 
     @Autowired
     private NotificationJpaRepository repository;
@@ -30,12 +34,9 @@ class NotificationControllerTests {
     @BeforeEach
     void datos() {
         repository.deleteAll();
-        service.procesar("""
-                {"tipo":"ORDEN_CREADA","numeroOrden":"ORD-0200","cliente":"ana-uuid",
-                 "servicio":"Planchado","sucursal":"Providencia","total":9500.0,"fecha":"2026-10-07"}""");
-        service.procesar("""
-                {"tipo":"ORDEN_LISTA","numeroOrden":"ORD-0200","cliente":"ana-uuid",
-                 "servicio":"Planchado","sucursal":"Providencia","total":9500.0,"fecha":"2026-10-07"}""");
+        eventos.deleteAll();
+        comandos.email(Sembrador.envelope("ORDEN_CREADA", "ORD-0200", "ana-uuid", null, "Providencia"), "email.send");
+        comandos.email(Sembrador.envelope("ORDEN_LISTA", "ORD-0200", "ana-uuid", null, "Providencia"), "email.send");
     }
 
     @Test
