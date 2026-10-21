@@ -158,4 +158,83 @@ class NotificationServiceTests {
         assertTrue(service.listar(null, null).isEmpty());
         assertEquals(Resultado.PROCESADO, comandos.email(envelope("ORDEN_CREADA", "ORD-0111", "ana-uuid", null, "Providencia"), "email.send"));
     }
+
+    // ---------- Spec 035: un aviso al Cliente por cada cambio de estado ----------
+
+    private void estado(String eventId, String orden, String cliente, String estado) {
+        comandos.email(Sembrador.estado(eventId, orden, cliente, estado), "email.send");
+    }
+
+    @Test
+    void cadaCambioDeEstadoAvisaAlClienteConSuPropiaFrase() {
+        estado("e1", "ORD-0301", "ana-uuid", "ACEPTADO");
+        estado("e2", "ORD-0301", "ana-uuid", "EN_PREPARACION");
+        estado("e3", "ORD-0301", "ana-uuid", "ENTREGADO");
+        estado("e4", "ORD-0301", "ana-uuid", "CANCELADO");
+
+        var avisos = service.listar("ana-uuid", null);
+        assertEquals(4, avisos.size());
+        var mensajes = avisos.stream().map(NotificationResponse::mensaje).toList();
+        assertTrue(mensajes.contains("Tu pedido ORD-0301 (Planchado) fue aceptado"));
+        assertTrue(mensajes.contains("Tu pedido ORD-0301 (Planchado) está en preparación"));
+        assertTrue(mensajes.contains("Tu pedido ORD-0301 (Planchado) fue entregado"));
+        assertTrue(mensajes.contains("Tu pedido ORD-0301 (Planchado) fue cancelado"));
+        assertTrue(avisos.stream().allMatch(a -> a.tipo().equals("ORDEN_ESTADO") && a.destinatarioTipo().equals("CLIENTE") && !a.leida()));
+    }
+
+    @Test
+    void elAvisoDeEstadoLeLlegaSoloAlClienteDuenoYNoALaSucursal() {
+        estado("e1", "ORD-0302", "ana-uuid", "ACEPTADO");
+
+        assertEquals(1, service.listar("ana-uuid", null).size());
+        assertTrue(service.listar("otro-uuid", null).isEmpty());
+        assertTrue(service.listar(null, "Providencia").isEmpty());
+    }
+
+    @Test
+    void elMismoEstadoDosVecesNoDuplicaElAvisoAunqueCambieElEventId() {
+        estado("e1", "ORD-0303", "ana-uuid", "ACEPTADO");
+        estado("e2", "ORD-0303", "ana-uuid", "ACEPTADO");
+
+        assertEquals(1, service.listar("ana-uuid", null).size());
+    }
+
+    @Test
+    void elMismoMensajeDosVecesSeIgnoraPorEventId() {
+        Envelope e = Sembrador.estado("e-igual", "ORD-0304", "ana-uuid", "ENTREGADO");
+
+        assertEquals(Resultado.PROCESADO, comandos.email(e, "email.send"));
+        assertEquals(Resultado.DUPLICADO, comandos.email(e, "email.send"));
+        assertEquals(1, service.listar("ana-uuid", null).size());
+    }
+
+    @Test
+    void elEstadoSeAceptaEnMinusculasYConEspacios() {
+        estado("e1", "ORD-0305", "ana-uuid", " aceptado ");
+
+        assertEquals("Tu pedido ORD-0305 (Planchado) fue aceptado", service.listar("ana-uuid", null).get(0).mensaje());
+    }
+
+    @Test
+    void unEstadoSinAvisoOFaltanteSeRechazaYNoGuardaNada() {
+        for (String malo : new String[]{"CREADO", "DESPACHADO", "VOLANDO", "", null}) {
+            Envelope e = Sembrador.estado("e-" + malo, "ORD-0306", "ana-uuid", malo);
+            assertThrows(IllegalArgumentException.class, () -> comandos.email(e, "email.send"), String.valueOf(malo));
+        }
+
+        assertTrue(service.listar("ana-uuid", null).isEmpty());
+        assertEquals(0, eventos.count());
+    }
+
+    @Test
+    void elAvisoDeEstadoConviveConElDeOrdenListaDeLaMismaOrden() {
+        estado("e1", "ORD-0307", "ana-uuid", "EN_PREPARACION");
+        email(envelope("ORDEN_LISTA", "ORD-0307", "ana-uuid", null, "Providencia"));
+        estado("e2", "ORD-0307", "ana-uuid", "ENTREGADO");
+
+        var tipos = service.listar("ana-uuid", null).stream().map(NotificationResponse::tipo).toList();
+        assertEquals(3, tipos.size());
+        assertEquals(2, tipos.stream().filter("ORDEN_ESTADO"::equals).count());
+        assertEquals(1, tipos.stream().filter("ORDEN_LISTA"::equals).count());
+    }
 }

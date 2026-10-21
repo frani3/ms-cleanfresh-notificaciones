@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 
 @Service
@@ -19,6 +20,15 @@ public class NotificationService {
 
     public static final String ORDEN_CREADA = "ORDEN_CREADA";
     public static final String ORDEN_LISTA = "ORDEN_LISTA";
+    /** Aviso al Cliente por un cambio de estado distinto de DESPACHADO (Spec 035). */
+    public static final String ORDEN_ESTADO = "ORDEN_ESTADO";
+
+    // Cómo se le dice al Cliente cada estado (DESPACHADO usa ORDEN_LISTA: "está listo").
+    private static final Map<String, String> FRASE_ESTADO = Map.of(
+            "ACEPTADO", "fue aceptado",
+            "EN_PREPARACION", "está en preparación",
+            "ENTREGADO", "fue entregado",
+            "CANCELADO", "fue cancelado");
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
@@ -30,8 +40,9 @@ public class NotificationService {
 
     /**
      * Guarda el aviso dirigido a quien corresponde y lo devuelve: ORDEN_CREADA avisa a la sucursal de la
-     * orden; ORDEN_LISTA, al cliente dueño. Si ya hay un aviso de ese tipo para esa orden (segunda defensa
-     * contra repetidos, además de la idempotencia por eventId), no se duplica. Un tipo que no corresponde
+     * orden; ORDEN_LISTA y ORDEN_ESTADO, al cliente dueño. Si ya hay un aviso igual (segunda defensa contra
+     * repetidos, además de la idempotencia por eventId), no se duplica: de ORDEN_CREADA y ORDEN_LISTA hay uno
+     * por orden; de ORDEN_ESTADO, uno por estado. Un tipo que no corresponde
      * lanza IllegalArgumentException, para que el mensaje termine en la DLQ en vez de reintentarse.
      *
      * Se llama dentro de la transacción de ComandoService: si algo falla, no queda guardado ni el aviso
@@ -39,7 +50,10 @@ public class NotificationService {
      */
     public String crearAviso(Envelope e) {
         NotificationEntity aviso = construirAviso(e);
-        if (repository.existsByTipoAndNumeroOrden(aviso.getTipo(), aviso.getNumeroOrden())) {
+        boolean repetido = ORDEN_ESTADO.equals(aviso.getTipo())
+                ? repository.existsByTipoAndNumeroOrdenAndMensaje(aviso.getTipo(), aviso.getNumeroOrden(), aviso.getMensaje())
+                : repository.existsByTipoAndNumeroOrden(aviso.getTipo(), aviso.getNumeroOrden());
+        if (repetido) {
             log.info("Notificación repetida ignorada: {} de {}", aviso.getTipo(), aviso.getNumeroOrden());
             return aviso.getMensaje();
         }
@@ -120,6 +134,15 @@ public class NotificationService {
         if (ORDEN_LISTA.equals(e.type())) {
             String texto = "Tu pedido %s (%s) está listo".formatted(p.numeroOrden(), p.servicio());
             return new NotificationEntity(ORDEN_LISTA, NotificationEntity.DESTINO_CLIENTE,
+                    p.cliente(), p.numeroOrden(), texto, ahora);
+        }
+        if (ORDEN_ESTADO.equals(e.type())) {
+            String frase = p.estado() == null ? null : FRASE_ESTADO.get(p.estado().trim().toUpperCase());
+            if (frase == null) {
+                throw new IllegalArgumentException("ORDEN_ESTADO con un estado sin aviso: " + p.estado());
+            }
+            String texto = "Tu pedido %s (%s) %s".formatted(p.numeroOrden(), p.servicio(), frase);
+            return new NotificationEntity(ORDEN_ESTADO, NotificationEntity.DESTINO_CLIENTE,
                     p.cliente(), p.numeroOrden(), texto, ahora);
         }
         throw new IllegalArgumentException("Tipo de mensaje no soportado: " + e.type());

@@ -17,7 +17,17 @@ final class Sembrador {
 
     static Envelope envelope(String type, String eventId, String numeroOrden, String cliente, String clienteNombre,
                              String sucursal, String servicio, Double total) {
+        return envelope(type, eventId, numeroOrden, cliente, clienteNombre, sucursal, servicio, total, null);
+    }
+
+    /** Aviso de cambio de estado (ORDEN_ESTADO): el estado nuevo viaja en el payload. */
+    static Envelope estado(String eventId, String numeroOrden, String cliente, String estado) {
+        return envelope("ORDEN_ESTADO", eventId, numeroOrden, cliente, null, "Providencia", "Planchado", 9500.0, estado);
+    }
+
+    static Envelope envelope(String type, String eventId, String numeroOrden, String cliente, String clienteNombre,
+                             String sucursal, String servicio, Double total, String estado) {
         return new Envelope(type, eventId, Instant.now().toString(), UUID.randomUUID().toString(), numeroOrden,
-                new Envelope.OrdenPayload(numeroOrden, cliente, clienteNombre, servicio, sucursal, total, "2026-10-15"));
+                new Envelope.OrdenPayload(numeroOrden, cliente, clienteNombre, servicio, sucursal, total, "2026-10-15", estado));
     }
 }

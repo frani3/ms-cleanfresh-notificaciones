@@ -12,6 +12,9 @@ public interface NotificationJpaRepository extends JpaRepository<NotificationEnt
 
     boolean existsByTipoAndNumeroOrden(String tipo, String numeroOrden);
 
+    /** Para ORDEN_ESTADO (Spec 035): una orden tiene un aviso por estado, no uno solo. */
+    boolean existsByTipoAndNumeroOrdenAndMensaje(String tipo, String numeroOrden, String mensaje);
+
     List<NotificationEntity> findAllByOrderByIdDesc();
 
     List<NotificationEntity> findByDestinatarioTipoAndDestinatarioIgnoreCaseOrderByIdDesc(

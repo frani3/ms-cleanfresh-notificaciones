@@ -12,12 +12,15 @@ import java.time.Instant;
 
 /**
  * Un aviso dirigido a alguien: a una sucursal (le llega al Operador que esté
- * en turno en ella) o a un cliente (por su username de Cognito). Es único por
- * tipo y orden: si RabbitMQ entrega dos veces el mismo mensaje, no se duplica.
+ * en turno en ella) o a un cliente (por su username de Cognito). No se repite el mismo
+ * aviso (tipo, orden y texto): si RabbitMQ entrega dos veces el mismo mensaje, no se duplica.
+ * Una orden puede tener varios avisos del mismo tipo con texto distinto, uno por cada estado
+ * (ORDEN_ESTADO, Spec 035). Antes la restricción era solo (tipo, orden); la migración que la
+ * reemplaza en una base existente está en MigracionEsquema.
  */
 @Entity
 @Table(name = "notificaciones",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"tipo", "numero_orden"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"tipo", "numero_orden", "mensaje"}))
 public class NotificationEntity {
 
     public static final String DESTINO_SUCURSAL = "SUCURSAL";
