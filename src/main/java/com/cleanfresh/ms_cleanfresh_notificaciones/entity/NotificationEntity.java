@@ -13,7 +13,7 @@ import java.time.Instant;
 /**
  * Un aviso dirigido a alguien: a una sucursal (le llega al Operador que esté
  * en turno en ella) o a un cliente (por su username de Cognito). Es único por
- * tipo y orden: si SQS entrega dos veces el mismo mensaje, no se duplica.
+ * tipo y orden: si RabbitMQ entrega dos veces el mismo mensaje, no se duplica.
  */
 @Entity
 @Table(name = "notificaciones",
