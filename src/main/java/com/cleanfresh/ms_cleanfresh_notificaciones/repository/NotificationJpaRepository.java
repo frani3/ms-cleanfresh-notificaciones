@@ -21,6 +21,15 @@ public interface NotificationJpaRepository extends JpaRepository<NotificationEnt
     @Query("update NotificationEntity n set n.leida = true where n.leida = false")
     int marcarTodasLeidas();
 
+    /** Marca UN aviso, solo si es de ese destinatario. Devuelve 0 si no existe o es de otro (Spec 034). */
+    @Modifying
+    @Query("""
+            update NotificationEntity n set n.leida = true
+            where n.id = :id and n.destinatarioTipo = :tipo
+              and lower(n.destinatario) = lower(:destinatario)""")
+    int marcarLeidaDe(@Param("id") Long id, @Param("tipo") String destinatarioTipo,
+                      @Param("destinatario") String destinatario);
+
     @Modifying
     @Query("""
             update NotificationEntity n set n.leida = true

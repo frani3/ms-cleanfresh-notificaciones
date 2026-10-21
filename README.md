@@ -32,6 +32,7 @@ consume nada.
 | GET | `/api/notificaciones?sucursal=<nombre>` | Avisos de esa sucursal |
 | GET | `/api/notificaciones` | Todos (uso del Admin) |
 | PUT | `/api/notificaciones/leidas?cliente=` o `?sucursal=` | Marca como leídos los de ese destinatario; devuelve `{"marcadas": n}` |
+| PUT | `/api/notificaciones/{id}/leida?cliente=` o `?sucursal=` | Marca como leído **un** aviso (Spec 034), solo si es de ese destinatario: `204`; si no existe o es de otro, `404`; sin filtro, en blanco o con los dos, `400`. Repetirlo no es error |
 | GET | `/api/tickets` | Tickets de taller registrados |
 | GET | `/api/boletas` | Boletas registradas |
 | GET | `/api/muertos` | Mensajes que pasaron por una DLQ (registro) |

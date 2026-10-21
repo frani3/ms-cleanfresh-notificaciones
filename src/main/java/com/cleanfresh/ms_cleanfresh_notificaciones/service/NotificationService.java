@@ -82,6 +82,23 @@ public class NotificationService {
         return repository.marcarTodasLeidas();
     }
 
+    /**
+     * Marca como leído UN aviso (Spec 034), solo si es del destinatario indicado: hay que dar cliente o
+     * sucursal (aquí no existe el "todos" del Admin). Devuelve false si no existe o es de otro destinatario;
+     * marcar uno ya leído no es un error.
+     */
+    @Transactional
+    public boolean marcarLeida(Long id, String cliente, String sucursal) {
+        validarFiltro(cliente, sucursal);
+        if (cliente != null) {
+            return repository.marcarLeidaDe(id, NotificationEntity.DESTINO_CLIENTE, cliente) > 0;
+        }
+        if (sucursal != null) {
+            return repository.marcarLeidaDe(id, NotificationEntity.DESTINO_SUCURSAL, sucursal) > 0;
+        }
+        throw new IllegalArgumentException("Indicar cliente o sucursal");
+    }
+
     private void validarFiltro(String cliente, String sucursal) {
         if (cliente != null && sucursal != null) {
             throw new IllegalArgumentException("Indicar cliente o sucursal, no ambos");
