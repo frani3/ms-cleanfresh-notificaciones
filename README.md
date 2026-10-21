@@ -13,7 +13,7 @@ con su cola de mensajes muertos (DLQ):
 
 | Cola | Comando | Efecto | Va dirigido a |
 |---|---|---|---|
-| `q.cmd.email` | `email.send[.*]` | Aviso: `ORDEN_CREADA` → "Nuevo pedido ORD-0014: ..." / `ORDEN_LISTA` → "Tu pedido ORD-0014 (...) está listo" | la **sucursal** (Operador en turno) / el **cliente** dueño (su `username`) |
+| `q.cmd.email` | `email.send[.*]` | Aviso: `ORDEN_CREADA` → "Nuevo pedido ORD-0014: ..." / `ORDEN_LISTA` → "Tu pedido ORD-0014 (...) está listo" / `ORDEN_ESTADO` → "Tu pedido ORD-0014 (...) fue aceptado · está en preparación · fue entregado · fue cancelado" (Spec 035) | la **sucursal** (Operador en turno) / el **cliente** dueño (su `username`) |
 | `q.cmd.kitchen` | `kitchen.ticket[.*]` | Ticket de taller de la sucursal (solo `ORDEN_CREADA`; la variante `.thermal` queda anotada) | la sucursal |
 | `q.cmd.invoice` | `invoice.gen[.*]` | Boleta con neto e IVA 19 % (solo `ORDEN_LISTA`) | el cliente |
 
@@ -110,3 +110,9 @@ docker run -p 8083:8083 -e RABBIT_ENABLED=true -e RABBITMQ_ADDRESSES=... cleanfr
 ```
 
 Los 5 microservicios se levantan juntos con el `docker-compose.yml` de `EP2/despliegue/` en el repo `cleanfresh-frontend`.
+
+## Esquema de la tabla `notificaciones`
+
+La restricción única es `(tipo, numero_orden, mensaje)`: no se repite el mismo aviso, pero una orden puede tener un
+aviso `ORDEN_ESTADO` por cada estado. Hasta la Spec 034 era `(tipo, numero_orden)`; como `ddl-auto: update` no elimina
+restricciones, `MigracionEsquema` quita la vieja al arrancar en una base PostgreSQL que ya existe (idempotente).
