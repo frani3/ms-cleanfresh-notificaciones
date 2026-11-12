@@ -1,5 +1,7 @@
 package com.cleanfresh.ms_cleanfresh_notificaciones.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.cleanfresh.ms_cleanfresh_notificaciones.dto.NotificationResponse;
 import com.cleanfresh.ms_cleanfresh_notificaciones.service.NotificationService;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/notificaciones")
+@Tag(name = "Notificaciones", description = "Avisos dirigidos a una sucursal o a un cliente, generados con los comandos de RabbitMQ. Solo lo consulta el BFF.")
 public class NotificationController {
 
     private final NotificationService service;
@@ -29,6 +32,7 @@ public class NotificationController {
         this.service = service;
     }
 
+    @Operation(summary = "Lista los avisos de una sucursal o de un cliente")
     @GetMapping
     public List<NotificationResponse> listar(
             @RequestParam(required = false) String cliente,
@@ -41,6 +45,7 @@ public class NotificationController {
     }
 
     /** 204 si quedó leído; 404 si no existe o no es de ese destinatario (no revela cuál de las dos). */
+    @Operation(summary = "Marca un aviso como leído (204; 404 si no es del destinatario o no existe)")
     @PutMapping("/{id}/leida")
     public ResponseEntity<Void> marcarLeida(
             @PathVariable Long id,
@@ -56,6 +61,7 @@ public class NotificationController {
         }
     }
 
+    @Operation(summary = "Marca como leídos todos los avisos de una sucursal o de un cliente")
     @PutMapping("/leidas")
     public Map<String, Integer> marcarLeidas(
             @RequestParam(required = false) String cliente,

@@ -1,5 +1,7 @@
 package com.cleanfresh.ms_cleanfresh_notificaciones.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.BoletaJpaRepository;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.MensajeMuertoJpaRepository;
 import com.cleanfresh.ms_cleanfresh_notificaciones.repository.TicketTallerJpaRepository;
@@ -16,6 +18,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api")
+@Tag(name = "Registros", description = "Lo que el servicio generó con los comandos de RabbitMQ: tickets de taller, boletas y mensajes muertos (DLQ).")
 public class RegistrosController {
 
     public record TicketResponse(Long id, String numeroOrden, String sucursal, String servicio, String clienteNombre,
@@ -41,6 +44,7 @@ public class RegistrosController {
         this.muertos = muertos;
     }
 
+    @Operation(summary = "Lista los tickets de taller generados")
     @GetMapping("/tickets")
     public List<TicketResponse> tickets() {
         return tickets.findAllByOrderByIdDesc().stream()
@@ -49,6 +53,7 @@ public class RegistrosController {
                 .toList();
     }
 
+    @Operation(summary = "Lista las boletas generadas (neto, IVA y total)")
     @GetMapping("/boletas")
     public List<BoletaResponse> boletas() {
         return boletas.findAllByOrderByIdDesc().stream()
@@ -58,6 +63,7 @@ public class RegistrosController {
                 .toList();
     }
 
+    @Operation(summary = "Lista los mensajes que no se pudieron procesar y se sacaron de las DLQ")
     @GetMapping("/muertos")
     public List<MensajeMuertoResponse> muertos() {
         return muertos.findAllByOrderByIdDesc().stream()

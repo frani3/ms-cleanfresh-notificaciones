@@ -26,6 +26,8 @@ consume nada.
 
 ## Endpoints
 
+Documentación OpenAPI (Swagger, Spec 046): `http://localhost:8083/swagger-ui.html` y el contrato en `/v3/api-docs`.
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/notificaciones?cliente=<username>` | Avisos de ese cliente, del más nuevo al más viejo |
